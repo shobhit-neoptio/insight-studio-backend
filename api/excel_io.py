@@ -248,6 +248,114 @@ ALGORITHMS_COLUMN_ORDER = [
 ]
 
 # ============================================================================
+# ENUMERATIONS SHEET CONFIGURATION
+# ============================================================================
+
+ENUMERATIONS_COLUMNS = {
+    "enumerationType": ColumnDefinition(
+        name="enumerationType", display_name="Enumeration Type", data_type="string",
+        required=True, max_length=64,
+        help_text="Type identifier for the enumeration group"
+    ),
+    "value": ColumnDefinition(
+        name="value", display_name="Value", data_type="string",
+        required=True, max_length=255,
+        help_text="The enumeration value"
+    ),
+    "displayText": ColumnDefinition(
+        name="displayText", display_name="Display Text", data_type="string",
+        required=False,
+        help_text="User-facing display text for the value"
+    ),
+    "derivedBooleanValue": ColumnDefinition(
+        name="derivedBooleanValue", display_name="Derived Boolean Value", data_type="boolean",
+        required=False,
+        help_text="Boolean mapping for algorithm processing (TRUE or FALSE)"
+    ),
+    "tags": ColumnDefinition(
+        name="tags", display_name="Tags", data_type="string",
+        required=False,
+        help_text="Additional tags (e.g., DELEGATE=TRUE)"
+    ),
+    "sortOrder": ColumnDefinition(
+        name="sortOrder", display_name="Sort Order", data_type="integer",
+        required=False, default_value=0,
+        help_text="Display order for the enumeration value"
+    ),
+}
+
+ENUMERATIONS_COLUMN_ORDER = [
+    "enumerationType", "value", "displayText", "derivedBooleanValue", "tags", "sortOrder"
+]
+
+# ============================================================================
+# FINDINGS SHEET CONFIGURATION
+# ============================================================================
+
+FINDINGS_COLUMNS = {
+    "findingCode": ColumnDefinition(
+        name="findingCode", display_name="Finding Code", data_type="string",
+        required=True, max_length=64, unique=True,
+        help_text="Unique identifier for the clinical finding"
+    ),
+    "name": ColumnDefinition(
+        name="name", display_name="Name", data_type="string",
+        required=True, max_length=255,
+        help_text="Display name for the finding"
+    ),
+    "description": ColumnDefinition(
+        name="description", display_name="Description", data_type="string",
+        required=False,
+        help_text="Detailed description of the finding"
+    ),
+    "category": ColumnDefinition(
+        name="category", display_name="Category", data_type="string",
+        required=False, max_length=64,
+        help_text="Category or domain for the finding"
+    ),
+    "severity": ColumnDefinition(
+        name="severity", display_name="Severity", data_type="string",
+        required=False, max_length=32,
+        help_text="Severity level of the finding"
+    ),
+}
+
+FINDINGS_COLUMN_ORDER = [
+    "findingCode", "name", "description", "category", "severity"
+]
+
+# ============================================================================
+# FINDING RELATIONSHIPS SHEET CONFIGURATION
+# ============================================================================
+
+FINDING_RELATIONSHIPS_COLUMNS = {
+    "sourceFindingCode": ColumnDefinition(
+        name="sourceFindingCode", display_name="Source Finding Code", data_type="string",
+        required=True, max_length=64,
+        help_text="The source finding in the relationship"
+    ),
+    "targetFindingCode": ColumnDefinition(
+        name="targetFindingCode", display_name="Target Finding Code", data_type="string",
+        required=True, max_length=64,
+        help_text="The target finding in the relationship"
+    ),
+    "relationshipTypeCode": ColumnDefinition(
+        name="relationshipTypeCode", display_name="Relationship Type", data_type="string",
+        required=True, max_length=32,
+        help_text="Type of relationship (e.g., CAUSAL)"
+    ),
+    "descriptor": ColumnDefinition(
+        name="descriptor", display_name="Descriptor", data_type="string",
+        required=True,
+        help_text="Description explaining the relationship"
+    ),
+}
+
+FINDING_RELATIONSHIPS_COLUMN_ORDER = [
+    "sourceFindingCode", "targetFindingCode", "relationshipTypeCode", "descriptor"
+]
+
+# ============================================================================
 # SHEET REGISTRY
 # ============================================================================
 
@@ -304,6 +412,27 @@ AVAILABLE_SHEETS = {
         "column_order": ALGORITHMS_COLUMN_ORDER,
         "description": "Define clinical decision rules that trigger assessments or findings.",
         "icon": "🔢"
+    },
+    "Enumerations": {
+        "name": "Enumerations",
+        "columns": ENUMERATIONS_COLUMNS,
+        "column_order": ENUMERATIONS_COLUMN_ORDER,
+        "description": "Define enumeration types and their values for ENUMERATION dataType fields.",
+        "icon": "📝"
+    },
+    "Findings": {
+        "name": "Findings",
+        "columns": FINDINGS_COLUMNS,
+        "column_order": FINDINGS_COLUMN_ORDER,
+        "description": "Define clinical findings that can be generated by algorithms.",
+        "icon": "🔍"
+    },
+    "Finding Relationships": {
+        "name": "Finding Relationships",
+        "columns": FINDING_RELATIONSHIPS_COLUMNS,
+        "column_order": FINDING_RELATIONSHIPS_COLUMN_ORDER,
+        "description": "Define relationships between clinical findings.",
+        "icon": "🔗"
     },
 }
 
