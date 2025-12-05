@@ -25,6 +25,7 @@ from api.validation import (
     get_group_info,
     suggest_algorithm_id,
 )
+from api.model_validator import validate_model
 
 app = FastAPI(
     title="Excel Sheet Builder API",
@@ -33,9 +34,16 @@ app = FastAPI(
 )
 
 # CORS middleware for React frontend
+# Allow frontend ports in range 5173-5182 for dynamic port allocation
+FRONTEND_ORIGINS = [
+    f"http://localhost:{port}" for port in range(5173, 5183)
+] + [
+    f"http://127.0.0.1:{port}" for port in range(5173, 5183)
+] + ["http://localhost:3000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+    allow_origins=FRONTEND_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -438,6 +446,18 @@ async def validate_expression(request: ExpressionValidationRequest) -> Dict[str,
     }
 
 
+@app.post("/api/validate/model")
+async def validate_full_model() -> Dict[str, Any]:
+    """Validate the entire clinical model across all sheets."""
+    global session_data
+    
+    try:
+        results = validate_model(session_data)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+
 # ============================================================================
 # Reference Data Endpoints
 # ============================================================================
@@ -538,5 +558,20 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Excel Sheet Builder API")
+    parser.add_argument("--port", type=int, default=8000, help="Port to run the server on")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload (requires import string)")
+    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Disable auto-reload")
+    parser.set_defaults(reload=False)
+    args = parser.parse_args()
+    
+    if args.reload:
+        # When reload is enabled, must use import string
+        uvicorn.run("main:app", host=args.host, port=args.port, reload=True)
+    else:
+        # Without reload, can use the app object directly
+        uvicorn.run(app, host=args.host, port=args.port)
 
