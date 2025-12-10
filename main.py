@@ -14,8 +14,9 @@ import json
 import re
 
 from api.excel_io import ExcelManager, AVAILABLE_SHEETS, get_column_order, get_empty_row
-from api.validation import (
+from validation import (
     validate_row,
+    validate_model,
     validate_algorithm_expression_basic,
     validate_algorithm_expression_facts,
     validate_algorithm_expression_groups,
@@ -25,7 +26,6 @@ from api.validation import (
     get_group_info,
     suggest_algorithm_id,
 )
-from api.model_validator import validate_model
 
 app = FastAPI(
     title="Excel Sheet Builder API",
@@ -453,7 +453,7 @@ async def validate_full_model() -> Dict[str, Any]:
     
     try:
         results = validate_model(session_data)
-        return results
+        return results.to_dict()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
@@ -544,6 +544,50 @@ async def get_empty_row_template(sheet_name: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Unknown sheet: {sheet_name}")
     
     return get_empty_row(sheet_name)
+
+
+@app.get("/api/fk-options")
+async def get_fk_options() -> Dict[str, List[str]]:
+    """Get all available foreign key options for dropdowns.
+    
+    Returns valid values for FK fields:
+    - moduleCodes: from Modules sheet (moduleCode column)
+    - assessmentCodes: from Assessments sheet (assessmentCode column)
+    - findingCodes: from Findings sheet (findingCode column)
+    - enumerationTypes: unique values from Enumerations sheet (enumerationType column)
+    """
+    global session_data
+    
+    # Get module codes
+    modules_df = session_data.get("Modules", pd.DataFrame())
+    module_codes = []
+    if not modules_df.empty and "moduleCode" in modules_df.columns:
+        module_codes = [str(v) for v in modules_df["moduleCode"].dropna().unique().tolist()]
+    
+    # Get assessment codes
+    assessments_df = session_data.get("Assessments", pd.DataFrame())
+    assessment_codes = []
+    if not assessments_df.empty and "assessmentCode" in assessments_df.columns:
+        assessment_codes = [str(v) for v in assessments_df["assessmentCode"].dropna().unique().tolist()]
+    
+    # Get finding codes
+    findings_df = session_data.get("Findings", pd.DataFrame())
+    finding_codes = []
+    if not findings_df.empty and "findingCode" in findings_df.columns:
+        finding_codes = [str(v) for v in findings_df["findingCode"].dropna().unique().tolist()]
+    
+    # Get enumeration types (unique values)
+    enumerations_df = session_data.get("Enumerations", pd.DataFrame())
+    enumeration_types = []
+    if not enumerations_df.empty and "enumerationType" in enumerations_df.columns:
+        enumeration_types = [str(v) for v in enumerations_df["enumerationType"].dropna().unique().tolist()]
+    
+    return {
+        "moduleCodes": sorted(module_codes),
+        "assessmentCodes": sorted(assessment_codes),
+        "findingCodes": sorted(finding_codes),
+        "enumerationTypes": sorted(enumeration_types),
+    }
 
 
 # ============================================================================

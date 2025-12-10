@@ -1,4 +1,4 @@
-#!/Users/macmachine/Desktop/Neoptio/model-generator/excel-ui-react/backend/venv/bin/python3.12
+#!/Users/macmachine/Desktop/Neoptio/insight-studio/backend/venv/bin/python3.12
 import sys
 from uvicorn.main import main
 if __name__ == '__main__':

@@ -1,64 +1,89 @@
 """
-Validation logic for Excel sheet data.
-Provides field-level and row-level validation based on column definitions.
+Level 1: Field + Row Validation (Real-time Frontend).
+
+This module provides validation for individual fields and rows,
+designed for real-time validation in the frontend.
+
+Also includes algorithm expression helpers for UI/real-time validation.
 """
 
 import re
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass
+from typing import Dict, List, Any, Optional, Tuple
 import pandas as pd
 
-from .excel_io import get_column_definitions, get_column_order, ColumnDefinition
+from .base import (
+    ValidationLevel,
+    ValidationIssue,
+    ValidationResult,
+    NULL_VALUE,
+    clean_json_str,
+    get_str_value,
+)
+
+# Import column definitions from excel_io
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from api.excel_io import get_column_definitions, get_column_order, ColumnDefinition
 
 
-@dataclass
-class ValidationError:
-    """Represents a validation error for a specific field."""
-    field: str
-    message: str
-    severity: str = "error"
-
-
-@dataclass
-class ValidationResult:
-    """Result of validating a row or field."""
-    is_valid: bool
-    errors: List[ValidationError]
-    warnings: List[ValidationError]
-    
-    @property
-    def has_errors(self) -> bool:
-        return len(self.errors) > 0
-    
-    @property
-    def has_warnings(self) -> bool:
-        return len(self.warnings) > 0
-
+# ============================================================================
+# LEVEL 1: FIELD VALIDATION
+# ============================================================================
 
 def validate_field(
     field_name: str,
     value: Any,
-    column_def: ColumnDefinition,
+    sheet_name: str,
     existing_values: Optional[List[Any]] = None,
     is_edit: bool = False,
-    original_value: Any = None
+    original_value: Any = None,
+    column_def: Optional[ColumnDefinition] = None
 ) -> ValidationResult:
-    """Validate a single field value against its column definition."""
-    errors = []
-    warnings = []
+    """
+    Level 1: Validate a single field value.
+    
+    Args:
+        field_name: Name of the field
+        value: Value to validate
+        sheet_name: Name of the sheet (for getting column definitions)
+        existing_values: List of existing values for uniqueness check
+        is_edit: Whether this is an edit operation
+        original_value: Original value if editing
+        column_def: Optional column definition (if not provided, looks up from sheet)
+    
+    Returns:
+        ValidationResult with any issues found
+    """
+    result = ValidationResult(is_valid=True, level=ValidationLevel.FIELD_ROW)
+    
+    # Get column definition if not provided
+    if column_def is None:
+        column_defs = get_column_definitions(sheet_name)
+        column_def = column_defs.get(field_name)
+        if column_def is None:
+            return result  # Unknown field, skip validation
+    
+    # Clean the value if it's a string
+    if isinstance(value, str):
+        value = clean_json_str(value)
     
     # Check required field
     if column_def.required:
         if value is None or (isinstance(value, str) and value.strip() == ""):
-            errors.append(ValidationError(
+            result.add_issue(ValidationIssue(
+                sheet=sheet_name,
+                row=None,
                 field=field_name,
-                message=f"{column_def.display_name} is required"
+                severity="error",
+                message=f"{column_def.display_name} is required",
+                level=ValidationLevel.FIELD_ROW
             ))
-            return ValidationResult(is_valid=False, errors=errors, warnings=warnings)
+            return result
     
     # Skip further validation if value is empty and not required
     if value is None or (isinstance(value, str) and value.strip() == ""):
-        return ValidationResult(is_valid=True, errors=errors, warnings=warnings)
+        return result
     
     # Type-specific validation
     if column_def.data_type == "string":
@@ -66,27 +91,51 @@ def validate_field(
             value = str(value)
         
         if column_def.max_length and len(value) > column_def.max_length:
-            errors.append(ValidationError(
+            result.add_issue(ValidationIssue(
+                sheet=sheet_name,
+                row=None,
                 field=field_name,
-                message=f"{column_def.display_name} must be {column_def.max_length} characters or less"
+                severity="error",
+                message=f"{column_def.display_name} must be {column_def.max_length} characters or less",
+                level=ValidationLevel.FIELD_ROW
             ))
         
         if column_def.pattern:
             if not re.match(column_def.pattern, value):
-                warnings.append(ValidationError(
+                result.add_issue(ValidationIssue(
+                    sheet=sheet_name,
+                    row=None,
                     field=field_name,
+                    severity="warning",
                     message=column_def.pattern_message or f"{column_def.display_name} format is not recommended",
-                    severity="warning"
+                    level=ValidationLevel.FIELD_ROW
                 ))
     
     elif column_def.data_type == "boolean":
         if not isinstance(value, bool):
             if isinstance(value, str):
                 if value.upper() not in ('TRUE', 'FALSE', 'YES', 'NO', '1', '0'):
-                    errors.append(ValidationError(
+                    result.add_issue(ValidationIssue(
+                        sheet=sheet_name,
+                        row=None,
                         field=field_name,
-                        message=f"{column_def.display_name} must be a boolean value"
+                        severity="error",
+                        message=f"{column_def.display_name} must be a boolean value",
+                        level=ValidationLevel.FIELD_ROW
                     ))
+    
+    elif column_def.data_type == "integer":
+        try:
+            int(value)
+        except (ValueError, TypeError):
+            result.add_issue(ValidationIssue(
+                sheet=sheet_name,
+                row=None,
+                field=field_name,
+                severity="error",
+                message=f"{column_def.display_name} must be an integer",
+                level=ValidationLevel.FIELD_ROW
+            ))
     
     # Check uniqueness
     if column_def.unique and existing_values:
@@ -98,25 +147,45 @@ def validate_field(
             existing_upper = [v for v in existing_upper if v != original_upper]
         
         if compare_value in existing_upper:
-            errors.append(ValidationError(
+            result.add_issue(ValidationIssue(
+                sheet=sheet_name,
+                row=None,
                 field=field_name,
-                message=f"{column_def.display_name} '{value}' already exists"
+                severity="error",
+                message=f"{column_def.display_name} '{value}' already exists",
+                level=ValidationLevel.FIELD_ROW
             ))
     
-    is_valid = len(errors) == 0
-    return ValidationResult(is_valid=is_valid, errors=errors, warnings=warnings)
+    return result
 
+
+# ============================================================================
+# LEVEL 1: ROW VALIDATION
+# ============================================================================
 
 def validate_row(
     row_data: Dict[str, Any],
     sheet_name: str,
     existing_df: Optional[pd.DataFrame] = None,
     is_edit: bool = False,
-    edit_index: Optional[int] = None
+    edit_index: Optional[int] = None,
+    row_number: Optional[int] = None
 ) -> ValidationResult:
-    """Validate an entire row of data."""
-    all_errors = []
-    all_warnings = []
+    """
+    Level 1: Validate an entire row of data.
+    
+    Args:
+        row_data: Dictionary of field values
+        sheet_name: Name of the sheet
+        existing_df: Existing DataFrame for uniqueness checks
+        is_edit: Whether this is an edit operation
+        edit_index: Index of row being edited
+        row_number: Excel row number (for error messages)
+    
+    Returns:
+        ValidationResult with all issues found
+    """
+    result = ValidationResult(is_valid=True, level=ValidationLevel.FIELD_ROW)
     
     column_defs = get_column_definitions(sheet_name)
     column_order = get_column_order(sheet_name)
@@ -135,24 +204,27 @@ def validate_row(
             if is_edit and edit_index is not None and edit_index < len(existing_values):
                 original_value = existing_values[edit_index]
         
-        result = validate_field(
+        field_result = validate_field(
             field_name=col_name,
             value=value,
-            column_def=col_def,
+            sheet_name=sheet_name,
             existing_values=existing_values,
             is_edit=is_edit,
-            original_value=original_value
+            original_value=original_value,
+            column_def=col_def
         )
         
-        all_errors.extend(result.errors)
-        all_warnings.extend(result.warnings)
+        # Update row number in issues
+        for issue in field_result.issues:
+            issue.row = row_number
+        
+        result.merge(field_result)
     
-    is_valid = len(all_errors) == 0
-    return ValidationResult(is_valid=is_valid, errors=all_errors, warnings=all_warnings)
+    return result
 
 
 # ============================================================================
-# ALGORITHM EXPRESSION VALIDATION
+# ALGORITHM EXPRESSION HELPERS (for UI/real-time validation)
 # ============================================================================
 
 def validate_algorithm_expression_basic(expression: str) -> Tuple[bool, List[str]]:
@@ -267,7 +339,7 @@ def validate_algorithm_expression_groups(
     messages = []
     found_groups = []
     missing_groups = []
-    group_fact_counts = {}
+    group_fact_counts: Dict[str, int] = {}
     is_valid = True
     
     if not expression:
@@ -421,3 +493,23 @@ def suggest_algorithm_id(existing_df) -> str:
     next_num = max(numbers) + 1
     return f"ALG_{next_num:03d}"
 
+
+# ============================================================================
+# PUBLIC API
+# ============================================================================
+
+__all__ = [
+    # Level 1 validation
+    "validate_field",
+    "validate_row",
+    
+    # Algorithm expression helpers
+    "validate_algorithm_expression_basic",
+    "validate_algorithm_expression_facts",
+    "validate_algorithm_expression_groups",
+    "get_available_groups",
+    "get_group_info",
+    "get_available_modules",
+    "get_available_assessments",
+    "suggest_algorithm_id",
+]

@@ -255,37 +255,42 @@ ENUMERATIONS_COLUMNS = {
     "enumerationType": ColumnDefinition(
         name="enumerationType", display_name="Enumeration Type", data_type="string",
         required=True, max_length=64,
-        help_text="Type identifier for the enumeration group"
+        help_text="Type identifier for the enumeration set (e.g., yesNo, frequency, severity)"
+    ),
+    "languageCode": ColumnDefinition(
+        name="languageCode", display_name="Language Code", data_type="string",
+        required=False, max_length=10,
+        help_text="ISO language code for localization (e.g., en, es, fr). When empty, assumes default language."
+    ),
+    "seq": ColumnDefinition(
+        name="seq", display_name="Sequence", data_type="integer",
+        required=True,
+        help_text="Display order sequence number. Lower numbers appear first."
     ),
     "value": ColumnDefinition(
         name="value", display_name="Value", data_type="string",
         required=True, max_length=255,
-        help_text="The enumeration value"
+        help_text="The display text shown to the user (e.g., Yes, No, Not at all)"
     ),
-    "displayText": ColumnDefinition(
-        name="displayText", display_name="Display Text", data_type="string",
-        required=False,
-        help_text="User-facing display text for the value"
-    ),
-    "derivedBooleanValue": ColumnDefinition(
-        name="derivedBooleanValue", display_name="Derived Boolean Value", data_type="boolean",
-        required=False,
-        help_text="Boolean mapping for algorithm processing (TRUE or FALSE)"
+    "derivedValue": ColumnDefinition(
+        name="derivedValue", display_name="Derived Value", data_type="string",
+        required=True, max_length=255,
+        help_text="The computed value used in algorithm evaluation (e.g., true, false, numeric)"
     ),
     "tags": ColumnDefinition(
         name="tags", display_name="Tags", data_type="string",
         required=False,
-        help_text="Additional tags (e.g., DELEGATE=TRUE)"
+        help_text="Additional tags (e.g., DELEGATE=factId)"
     ),
-    "sortOrder": ColumnDefinition(
-        name="sortOrder", display_name="Sort Order", data_type="integer",
-        required=False, default_value=0,
-        help_text="Display order for the enumeration value"
+    "changeControl": ColumnDefinition(
+        name="changeControl", display_name="Change Control", data_type="string",
+        required=False,
+        help_text="Audit trail and version tracking identifier"
     ),
 }
 
 ENUMERATIONS_COLUMN_ORDER = [
-    "enumerationType", "value", "displayText", "derivedBooleanValue", "tags", "sortOrder"
+    "enumerationType", "languageCode", "seq", "value", "derivedValue", "tags", "changeControl"
 ]
 
 # ============================================================================
@@ -296,33 +301,35 @@ FINDINGS_COLUMNS = {
     "findingCode": ColumnDefinition(
         name="findingCode", display_name="Finding Code", data_type="string",
         required=True, max_length=64, unique=True,
-        help_text="Unique identifier for the clinical finding"
+        help_text="Unique identifier for the clinical finding",
+        pattern=r"^[A-Z0-9][A-Z0-9_\-]*[A-Z0-9]$|^[A-Z0-9]+$",
+        pattern_message="Finding code should be UPPERCASE with underscores or hyphens"
     ),
     "name": ColumnDefinition(
         name="name", display_name="Name", data_type="string",
         required=True, max_length=255,
-        help_text="Display name for the finding"
+        help_text="Internal display name for the finding"
     ),
-    "description": ColumnDefinition(
-        name="description", display_name="Description", data_type="string",
+    "clientFriendlyName": ColumnDefinition(
+        name="clientFriendlyName", display_name="Client Friendly Name", data_type="string",
         required=False,
-        help_text="Detailed description of the finding"
+        help_text="User-friendly name shown to clients"
     ),
-    "category": ColumnDefinition(
-        name="category", display_name="Category", data_type="string",
-        required=False, max_length=64,
-        help_text="Category or domain for the finding"
+    "icdCode": ColumnDefinition(
+        name="icdCode", display_name="ICD Code", data_type="string",
+        required=False, max_length=16,
+        help_text="ICD-10 diagnostic code",
+        pattern=r"^[A-Z]\d{2}(\.\d{1,4})?$",
+        pattern_message="ICD code should be in format like F32.1 or A01.0"
     ),
-    "severity": ColumnDefinition(
-        name="severity", display_name="Severity", data_type="string",
-        required=False, max_length=32,
-        help_text="Severity level of the finding"
+    "tags": ColumnDefinition(
+        name="tags", display_name="Tags", data_type="string",
+        required=False,
+        help_text="Comma-separated tags for categorization"
     ),
 }
 
-FINDINGS_COLUMN_ORDER = [
-    "findingCode", "name", "description", "category", "severity"
-]
+FINDINGS_COLUMN_ORDER = ["findingCode", "name", "clientFriendlyName", "icdCode", "tags"]
 
 # ============================================================================
 # FINDING RELATIONSHIPS SHEET CONFIGURATION
@@ -339,20 +346,25 @@ FINDING_RELATIONSHIPS_COLUMNS = {
         required=True, max_length=64,
         help_text="The target finding in the relationship"
     ),
+    "sequence": ColumnDefinition(
+        name="sequence", display_name="Sequence", data_type="integer",
+        required=True,
+        help_text="Order/position in the relationship chain. Lower numbers appear first."
+    ),
     "relationshipTypeCode": ColumnDefinition(
         name="relationshipTypeCode", display_name="Relationship Type", data_type="string",
         required=True, max_length=32,
-        help_text="Type of relationship (e.g., CAUSAL)"
+        help_text="Type of relationship (e.g., differential, comorbid, subtype, excludes, related)"
     ),
     "descriptor": ColumnDefinition(
         name="descriptor", display_name="Descriptor", data_type="string",
-        required=True,
-        help_text="Description explaining the relationship"
+        required=False,
+        help_text="Human-readable description of the relationship"
     ),
 }
 
 FINDING_RELATIONSHIPS_COLUMN_ORDER = [
-    "sourceFindingCode", "targetFindingCode", "relationshipTypeCode", "descriptor"
+    "sourceFindingCode", "targetFindingCode", "sequence", "relationshipTypeCode", "descriptor"
 ]
 
 # ============================================================================
@@ -427,8 +439,8 @@ AVAILABLE_SHEETS = {
         "description": "Define clinical findings that can be generated by algorithms.",
         "icon": "🔍"
     },
-    "Finding Relationships": {
-        "name": "Finding Relationships",
+    "Findings Relationships": {
+        "name": "Findings Relationships",
         "columns": FINDING_RELATIONSHIPS_COLUMNS,
         "column_order": FINDING_RELATIONSHIPS_COLUMN_ORDER,
         "description": "Define relationships between clinical findings.",
